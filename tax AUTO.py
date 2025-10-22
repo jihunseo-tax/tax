@@ -6,7 +6,7 @@ st.set_page_config(page_title="2024 대한민국 종합소득세 계산기", lay
 st.title("🇰🇷 2024 대한민국 종합소득세 자동화 웹 앱")
 
 # ───────────────────────────────
-# 세율 계산 함수 (VBA와 동일)
+# ✅ 1. 세율 계산 함수
 # ───────────────────────────────
 def calc_tax_2024(income_man):
     income = income_man * 10000
@@ -34,56 +34,65 @@ def add_tax_columns(df):
     return df
 
 # ───────────────────────────────
-# 데이터 로드 & 초기 표시
+# ✅ 2. 세션 상태 초기화
 # ───────────────────────────────
-@st.cache_data
-def load_data():
-    df = pd.DataFrame({
+if "data" not in st.session_state:
+    df_init = pd.DataFrame({
         "이름": ["김민준", "이서윤", "박지호", "최지우", "정현우"],
         "연소득(만원)": [2800, 5200, 7500, 9500, 13000]
     })
-    return add_tax_columns(df)
+    st.session_state.data = add_tax_columns(df_init)
 
-df = load_data()
-
-# ───────────────────────────────
-# 사이드바 입력
-# ───────────────────────────────
-st.sidebar.header("데이터 추가")
-name = st.sidebar.text_input("이름 입력")
-income = st.sidebar.number_input("연소득 (만원)", min_value=1000, max_value=20000, step=100)
-
-if st.sidebar.button("데이터 추가"):
-    new_row = pd.DataFrame({"이름": [name], "연소득(만원)": [income]})
-    df = pd.concat([df, new_row], ignore_index=True)
-    df = add_tax_columns(df)
-    st.session_state["data"] = df
-    st.success(f"{name}님의 데이터가 추가되었습니다!")
+df = st.session_state.data
 
 # ───────────────────────────────
-# 데이터 테이블
+# ✅ 3. 사이드바 입력 및 추가
+# ───────────────────────────────
+st.sidebar.header("데이터 추가 / 삭제")
+
+with st.sidebar:
+    name = st.text_input("이름 입력")
+    income = st.number_input("연소득 (만원)", min_value=1000, max_value=20000, step=100)
+    if st.button("데이터 추가"):
+        if name.strip() == "":
+            st.warning("이름을 입력하세요.")
+        else:
+            new_row = pd.DataFrame({"이름": [name], "연소득(만원)": [income]})
+            st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True)
+            st.session_state.data = add_tax_columns(st.session_state.data)
+            st.success(f"{name}님의 데이터가 추가되었습니다!")
+
+    # ✅ 데이터 삭제 기능
+    if len(st.session_state.data) > 0:
+        delete_name = st.selectbox("삭제할 이름 선택", st.session_state.data["이름"])
+        if st.button("데이터 삭제"):
+            st.session_state.data = st.session_state.data[st.session_state.data["이름"] != delete_name]
+            st.success(f"{delete_name}님의 데이터가 삭제되었습니다!")
+
+# ───────────────────────────────
+# ✅ 4. 데이터 테이블 표시
 # ───────────────────────────────
 st.subheader("📋 데이터 테이블")
-st.dataframe(df, use_container_width=True)
+st.dataframe(st.session_state.data, use_container_width=True)
 
 # ───────────────────────────────
-# 요약 정보
+# ✅ 5. 요약 정보
 # ───────────────────────────────
 st.subheader("📊 요약 정보")
 col1, col2, col3 = st.columns(3)
-col1.metric("총 인원", len(df))
-col2.metric("총 연소득(만원)", int(df["연소득(만원)"].sum()))
-col3.metric("평균 세율(%)", round(df["세율(%)"].mean(), 2))
+col1.metric("총 인원", len(st.session_state.data))
+col2.metric("총 연소득(만원)", int(st.session_state.data["연소득(만원)"].sum()))
+col3.metric("평균 세율(%)", round(st.session_state.data["세율(%)"].mean(), 2))
 
 # ───────────────────────────────
-# 파이차트 (소득 구간별)
+# ✅ 6. 파이차트 (소득 구간별)
 # ───────────────────────────────
 bins = [0, 3000, 5000, 8000, 12000, 20000]
 labels = ["≤3000", "3001~5000", "5001~8000", "8001~12000", ">12000"]
-df["소득구간"] = pd.cut(df["연소득(만원)"], bins=bins, labels=labels, include_lowest=True)
+st.session_state.data["소득구간"] = pd.cut(st.session_state.data["연소득(만원)"], bins=bins, labels=labels, include_lowest=True)
 
 st.subheader("🎨 소득 구간별 인원 비율")
-fig = px.pie(df, names="소득구간", title="연소득 구간 비율",
+fig = px.pie(st.session_state.data, names="소득구간", title="연소득 구간 비율",
              color="소득구간",
              color_discrete_sequence=["#B0E0FF", "#FFF9A6", "#FFD6A5", "#FFA1A1", "#C7A6FF"])
 st.plotly_chart(fig, use_container_width=True)
